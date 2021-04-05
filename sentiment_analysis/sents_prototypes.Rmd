@@ -1,0 +1,111 @@
+---
+title: "CRA Sentiment Analysis"
+author: "Alex Lehmann 101061620"
+date: "05/04/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(readxl)
+library(tidyverse)
+library(tidytext)
+```
+
+## Loading Data
+```{r load}
+# Translated responses =========================================================
+responses <- read_xlsx("../masterResponse.xlsx") %>%
+  rename(
+    internal_id = c_1,
+    language = c_2,
+    question = column,
+    original = response,
+    response = english
+  ) %>%
+  select(-`...1`)
+```
+
+## Cleaning
+```{r clean}
+clean <- responses %>%
+  
+  # Standardize word representation --------------------------------------------
+  mutate(
+    response = str_to_lower(response),
+    response = str_replace_all(response, "[[:punct:]]", " "),
+    response = str_replace_all(response, "\\s{2,}", " ")
+  ) %>%
+  
+  # Remove empty responses -----------------------------------------------------
+  drop_na()
+```
+
+## Tokenizing
+```{r tokenize}
+tokens <- clean %>%
+  
+  # Convert responses to list-column for purrr ---------------------------------
+  nest(cols = response) %>%
+  rename(response = original, tokens = cols) %>%
+  
+  # Tokenize -------------------------------------------------------------------
+  mutate(tokens = map(
+                    tokens,
+                    unnest_tokens,
+                    input = response, output = bigram,
+                    token = "ngrams", n = 2
+                  ),
+         tokens = map(
+                    tokens,
+                    separate,
+                    col = bigram,
+                    into = c("preword", "word"),
+                    sep = " "
+                  )
+  )
+```
+
+## Map Sentiments
+```{r sentiments}
+# Helper functions to map sentiments within a list-column ======================
+map_sents = function(tokens, lexicon) {
+              # Map main sentiments to words -----------------------------------
+              sents = tokens %>%
+                inner_join(lexicon, by = "word") %>%
+                filter(sentiment %in% c("positive", "negative")) %>%
+                mutate(sentiment = ifelse(sentiment == "positive", 1, -1))
+              
+              # Handle negation ------------------------------------------------
+              neg_words = c("no", "not", "isn't", "don't", "didn't")
+              sents = mutate(
+                        sents,
+                        sentiment = ifelse(
+                                      preword %in% neg_words,
+                                      -1 * sentiment,
+                                      sentiment
+                                    )
+                      )
+              # Get overall sentiment ------------------------------------------
+              sents %>%
+                pull(sentiment) %>%
+                sum() %>%
+                return()
+}
+
+# Map sentiments ===============================================================
+sents <- tokens %>%
+  mutate(
+    nrc = map_dbl(
+            tokens,
+            map_sents,
+            lexicon = get_sentiments("nrc")
+          ),
+    bing = map_dbl(
+             tokens,
+             map_sents,
+             lexicon = get_sentiments("bing")
+           )
+  )
+```
