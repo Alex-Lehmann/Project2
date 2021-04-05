@@ -17,24 +17,99 @@ library(tidytext)
 ```{r load}
 # Translated responses =========================================================
 responses <- read_xlsx("../masterResponse.xlsx") %>%
+  select(-response) %>%
   rename(
     internal_id = c_1,
     language = c_2,
     question = column,
-    original = response,
     response = english
   ) %>%
   select(-`...1`)
+
+# Augment with survey MC responses =============================================
+# Load -------------------------------------------------------------------------
+survey <- read_xlsx("../Redacted FAB_Project_raw_data_Clean EXCEL Dec.23.xlsx")
+colnames(survey) = c(
+                     "internal_id",
+                     "language",
+                     "status",
+                     "date",
+                     "region",
+                     "area1",
+                     "area2",
+                     "area3",
+                     "area4",
+                     "area5",
+                     "cra_tenure",
+                     "fab_tenure",
+                     "tools_training",
+                     "c_14",
+                     "corporate_knowledge",
+                     "innovation",
+                     "share_ideas",
+                     "heard",
+                     "know_clients",
+                     "clients_understand",
+                     "comm_preference",
+                     "c_22",
+                     "timely_response",
+                     "prevents_service1",
+                     "prevents_service2",
+                     "prevents_service3",
+                     "prevents_service4",
+                     "prevents_service5",
+                     "prevents_service6",
+                     "c_30",
+                     "prevents_service7",
+                     "importance1",
+                     "importance2",
+                     "importance3",
+                     "importance4",
+                     "importance5",
+                     "importance6",
+                     "importance7",
+                     "policy_improve",
+                     "c_40",
+                     "c_41",
+                     "compliments",
+                     "c_43",
+                     "excellent_service",
+                     "c_45",
+                     "c_46",
+                     "can_contact",
+                     "c_48"
+                   )
+
+# Clean MC responses -----------------------------------------------------------
+survey = survey %>%
+  select(-c(language, status, date), -starts_with("c_")) %>%
+  mutate(
+    # Combine separated columns
+    area = coalesce(area1, area2, area3, area4, area5),
+    prevents_service = coalesce(
+                         prevents_service1,
+                         prevents_service2,
+                         prevents_service3,
+                         prevents_service4,
+                         prevents_service5,
+                         prevents_service6,
+                         prevents_service7
+                       ),
+    .keep = "unused"
+  )
+
+# Augment text data ------------------------------------------------------------
+responses = full_join(responses, survey, by = "internal_id")
 ```
 
-## Cleaning
+## Cleaning 
 ```{r clean}
 clean <- responses %>%
   
   # Standardize word representation --------------------------------------------
   mutate(
     response = str_to_lower(response),
-    response = str_replace_all(response, "[[:punct:]]", " "),
+    response = str_replace_all(response, "[^[[:alnum:]]']", " "),
     response = str_replace_all(response, "\\s{2,}", " ")
   ) %>%
   
@@ -48,64 +123,87 @@ tokens <- clean %>%
   
   # Convert responses to list-column for purrr ---------------------------------
   nest(cols = response) %>%
-  rename(response = original, tokens = cols) %>%
+  rename(tokens = cols) %>%
   
   # Tokenize -------------------------------------------------------------------
-  mutate(tokens = map(
-                    tokens,
-                    unnest_tokens,
-                    input = response, output = bigram,
-                    token = "ngrams", n = 2
-                  ),
-         tokens = map(
-                    tokens,
-                    separate,
-                    col = bigram,
-                    into = c("preword", "word"),
-                    sep = " "
-                  )
+  mutate(
+    tokens = map(tokens, unnest_tokens,
+               input = response, output = bigram,
+               token = "ngrams", n = 2
+             ),
+    tokens = map(tokens, separate,
+               col = bigram,
+               into = c("preword", "word"),
+               sep = " "
+             )
   )
 ```
 
 ## Map Sentiments
 ```{r sentiments}
-# Helper functions to map sentiments within a list-column ======================
-map_sents = function(tokens, lexicon) {
-              # Map main sentiments to words -----------------------------------
-              sents = tokens %>%
-                inner_join(lexicon, by = "word") %>%
-                filter(sentiment %in% c("positive", "negative")) %>%
-                mutate(sentiment = ifelse(sentiment == "positive", 1, -1))
-              
-              # Handle negation ------------------------------------------------
-              neg_words = c("no", "not", "isn't", "don't", "didn't")
-              sents = mutate(
-                        sents,
-                        sentiment = ifelse(
-                                      preword %in% neg_words,
-                                      -1 * sentiment,
-                                      sentiment
-                                    )
-                      )
-              # Get overall sentiment ------------------------------------------
-              sents %>%
-                pull(sentiment) %>%
-                sum() %>%
-                return()
+# Helper function to map sentiments within a list-column =======================
+map_sents <- function(tokens,
+                      lexicon, 
+                      neg_dict = c("no", "not", "isn't", "don't", "didn't")) {
+  for (lex in lexicon) {
+    cur_cols = colnames(tokens) # To update column names later
+    
+    # Map sentiments -----------------------------------------------------------
+    tokens <- inner_join(tokens, get_sentiments(lex), by = "word")
+    colnames(tokens)[ncol(tokens)] = "sentiment"
+    
+    # Convert sentiments to numeric --------------------------------------------
+    tokens <- tokens %>%
+      filter(sentiment %in% c("positive", "negative") | sentiment %in% -5:5) %>%
+      mutate(
+        sentiment = ifelse(sentiment == "positive", 1, sentiment),
+        sentiment = ifelse(sentiment == "negative", -1, sentiment),
+        sentiment = as.numeric(sentiment)
+      ) %>%
+      
+      # Handle negation --------------------------------------------------------
+      mutate(sentiment = ifelse(preword %in% neg_dict, -1*sentiment, sentiment))
+    
+    # Update column names ------------------------------------------------------
+    colnames(tokens) <- c(cur_cols, lex)
+  }
+  
+  tokens
 }
 
 # Map sentiments ===============================================================
-sents <- tokens %>%
-  mutate(
-    nrc = map_dbl(
-            tokens,
-            map_sents,
-            lexicon = get_sentiments("nrc")
-          ),
-    bing = map_dbl(
-             tokens,
-             map_sents,
-             lexicon = get_sentiments("bing")
-           )
-  )
+sents <- mutate(tokens,
+           sents = map(tokens, map_sents, lexicon = c("nrc", "bing", "afinn")),
+           nrc = map_dbl(sents, function(x) sum(x$nrc)),
+           bing = map_dbl(sents, function(x) sum(x$bing)),
+           afinn = map_dbl(sents, function(x) sum(x$afinn))
+         )
+```
+
+## Analyze Sentiment
+```{r analyze}
+# Group by question and create new tibble for analysis =========================
+question_sents = sents %>%
+  group_by(question) %>%
+  nest()
+
+# Summary statistics ===========================================================
+# Helper function to get means from list-columns -------------------------------
+get_means = function(sents) {
+  sents %>%
+    select(any_of(c("nrc", "bing", "afinn", "loughlin"))) %>%
+    pivot_longer(everything(), names_to = "lex", values_to = "sent") %>%
+    group_by(lex) %>%
+    summarize(mean = mean(sent), .groups = "drop") %>%
+    mutate(lex = str_c(lex, "_mean")) %>%
+    pivot_wider(names_from = "lex", values_from = "mean") %>%
+    as.list()
+}
+
+# Compute summary statistics ---------------------------------------------------
+question_sents = mutate(question_sents,
+                   responses = map(data, nrow),
+                   means = map(data, get_means)
+                 ) %>%
+  unnest_wider(means)
 ```
