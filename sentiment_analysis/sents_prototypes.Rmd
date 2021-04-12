@@ -181,17 +181,92 @@ sents <- mutate(tokens,
 ```
 
 ## Analyze Sentiment
-```{r analyze}
-# Overall sentiments by worker properties ======================================
+```{r analyze_cats}
+# Overall sentiments by worker properties ######################################
+# Helper function ==============================================================
 sents_by_cats = function(var, sents) {
   sents %>%
     group_by(eval(as.name(var))) %>%
-    summarize(across(any_of(c("nrc", "bing", "afinn")), mean), .groups = "drop")
+    summarize(across(any_of(c("nrc", "bing", "afinn")), mean), .groups = "drop") %>%
+    rename(var = `eval(as.name(var))`)
 }
 
+# Get overall sentiments =======================================================
+# By worker information --------------------------------------------------------
 region_sents = sents_by_cats("region", sents)
 area_sents = sents_by_cats("area", sents)
 cra_tenure_sents = sents_by_cats("cra_tenure", sents)
 fab_tenure_sents = sents_by_cats("fab_tenure", sents)
 language_sents = sents_by_cats("language", sents)
+
+# Per question -----------------------------------------------------------------
+question_sents = sents_by_cats("question", sents)
+
+# Visualize ====================================================================
+# Helper function for barplotting ----------------------------------------------
+sents_barplot = function(sents, lex) {
+  ggplot(sents, aes(x = var, y = eval(as.name(lex)))) +
+    geom_bar(stat = "identity") +
+    ylab(lex)
+}
+
+# Helper function for lineplotting ---------------------------------------------
+sents_lineplot = function(sents, lex) {
+  ggplot(sents, aes(x = var, y = eval(as.name(lex)))) +
+    geom_line() + 
+    ylab(lex)
+}
+
+# Generate plots ---------------------------------------------------------------
+# Region
+sents_barplot(region_sents, "nrc") + xlab("Region")
+sents_barplot(region_sents, "bing") + xlab("Region")
+sents_barplot(region_sents, "afinn") + xlab("Region")
+
+# Work area
+sents_barplot(area_sents, "nrc") + xlab("Area") + coord_flip()
+sents_barplot(area_sents, "bing") + xlab("Area") + coord_flip()
+sents_barplot(area_sents, "afinn") + xlab("Area") + coord_flip()
+
+# Language
+sents_barplot(language_sents, "nrc") + xlab("Language")
+sents_barplot(language_sents, "bing") + xlab("Language")
+sents_barplot(language_sents, "afinn") + xlab("Language")
+
+# Question
+sents_barplot(question_sents, "nrc") + xlab("Question")
+sents_barplot(question_sents, "bing") + xlab("Question")
+sents_barplot(question_sents, "afinn") + xlab("Question")
+
+# CRA tenure
+cra_tenure_sents %>%
+  mutate(var = factor(var, 
+                 levels = c(
+                            "0 to 2 years",
+                            "3 to 4 years",
+                            "5 to 10 years",
+                            "11 to 20 years",
+                            "21 + years"
+                          )
+               )) %>%
+  pivot_longer(!var, names_to = "lex", values_to = "sent") %>%
+  ggplot(aes(x = var, y = sent, group = lex, color = lex)) +
+  geom_line() +
+  xlab("CRA Tenure")
+
+# FAB tenure
+fab_tenure_sents %>%
+  mutate(var = factor(var, 
+                 levels = c(
+                            "0 to 2 years",
+                            "3 to 4 years",
+                            "5 to 10 years",
+                            "11 to 20 years",
+                            "21 + years"
+                          )
+               )) %>%
+  pivot_longer(!var, names_to = "lex", values_to = "sent") %>%
+  ggplot(aes(x = var, y = sent, group = lex, color = lex)) +
+  geom_line() +
+  xlab("FAB Tenure")
 ```
