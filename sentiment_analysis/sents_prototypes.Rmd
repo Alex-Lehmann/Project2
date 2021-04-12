@@ -174,36 +174,24 @@ map_sents <- function(tokens,
 # Map sentiments ===============================================================
 sents <- mutate(tokens,
            sents = map(tokens, map_sents, lexicon = c("nrc", "bing", "afinn")),
-           nrc = map_dbl(sents, function(x) sum(x$nrc)),
-           bing = map_dbl(sents, function(x) sum(x$bing)),
-           afinn = map_dbl(sents, function(x) sum(x$afinn))
+           nrc = map_dbl(sents, ~ sum(.x$nrc)),
+           bing = map_dbl(sents, ~ sum(.x$bing)),
+           afinn = map_dbl(sents, ~ sum(.x$afinn))
          )
 ```
 
 ## Analyze Sentiment
 ```{r analyze}
-# Group by question and create new tibble for analysis =========================
-question_sents = sents %>%
-  group_by(question) %>%
-  nest()
-
-# Summary statistics ===========================================================
-# Helper function to get means from list-columns -------------------------------
-get_means = function(sents) {
+# Overall sentiments by worker properties ======================================
+sents_by_cats = function(var, sents) {
   sents %>%
-    select(any_of(c("nrc", "bing", "afinn", "loughlin"))) %>%
-    pivot_longer(everything(), names_to = "lex", values_to = "sent") %>%
-    group_by(lex) %>%
-    summarize(mean = mean(sent), .groups = "drop") %>%
-    mutate(lex = str_c(lex, "_mean")) %>%
-    pivot_wider(names_from = "lex", values_from = "mean") %>%
-    as.list()
+    group_by(eval(as.name(var))) %>%
+    summarize(across(any_of(c("nrc", "bing", "afinn")), mean), .groups = "drop")
 }
 
-# Compute summary statistics ---------------------------------------------------
-question_sents = mutate(question_sents,
-                   responses = map(data, nrow),
-                   means = map(data, get_means)
-                 ) %>%
-  unnest_wider(means)
+region_sents = sents_by_cats("region", sents)
+area_sents = sents_by_cats("area", sents)
+cra_tenure_sents = sents_by_cats("cra_tenure", sents)
+fab_tenure_sents = sents_by_cats("fab_tenure", sents)
+language_sents = sents_by_cats("language", sents)
 ```
