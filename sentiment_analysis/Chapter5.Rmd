@@ -196,7 +196,7 @@ Here, we visualized the sentiment distributions across several categorical varia
 ```{r analyze_cats}
 # Overall sentiments by worker properties ######################################
 # Helper function ==============================================================
-sents_by_cats = function(var, sents) {
+sents_by_cats <- function(var, sents) {
   sents %>%
     group_by(eval(as.name(var))) %>%
     summarize(across(any_of(c("nrc", "bing", "afinn")), mean), .groups = "drop") %>%
@@ -205,25 +205,25 @@ sents_by_cats = function(var, sents) {
 
 # Get overall sentiments =======================================================
 # By worker information --------------------------------------------------------
-region_sents = sents_by_cats("region", sents)
-area_sents = sents_by_cats("area", sents)
-cra_tenure_sents = sents_by_cats("cra_tenure", sents)
-fab_tenure_sents = sents_by_cats("fab_tenure", sents)
-language_sents = sents_by_cats("language", sents)
+region_sents <- sents_by_cats("region", sents)
+area_sents <- sents_by_cats("area", sents)
+cra_tenure_sents <- sents_by_cats("cra_tenure", sents)
+fab_tenure_sents <- sents_by_cats("fab_tenure", sents)
+language_sents <- sents_by_cats("language", sents)
 
 # Per question -----------------------------------------------------------------
-question_sents = sents_by_cats("question", sents)
+question_sents <- sents_by_cats("question", sents)
 
 # Visualize ====================================================================
 # Helper function for barplotting ----------------------------------------------
-sents_barplot = function(sents, lex) {
+sents_barplot <- function(sents, lex) {
   ggplot(sents, aes(x = var, y = eval(as.name(lex)))) +
     geom_bar(stat = "identity") +
     ylab(lex)
 }
 
 # Helper function for lineplotting ---------------------------------------------
-sents_lineplot = function(sents, lex) {
+sents_lineplot <- function(sents, lex) {
   ggplot(sents, aes(x = var, y = eval(as.name(lex)))) +
     geom_line() + 
     geom_hline(aes(yintercept = mean(sents$var)))
@@ -292,7 +292,7 @@ All tests were conducted at the $\alpha$=``0.05`` level of significance.
 ```{r analyze_perm_tests, cache = TRUE, message = FALSE}
 # Function to run a permutation test on the sentiments =========================
 # Mode 1 = >, mode 2 = <
-perm_test = function(df,
+perm_test <- function(df,
                      cats,
                      vals,
                      pop1,
@@ -302,12 +302,12 @@ perm_test = function(df,
                      mode = 1) {
   # Change labels to those required for the test -------------------------------
   if (is.null(pop2)) {
-    test_df = df %>%
+    test_df <- df %>%
       select(c(cats, vals)) %>%
       rename(cats = !!cats, vals = !!vals) %>%
       mutate(cats = ifelse(cats == pop1, "pop1", "pop2"))
   } else {
-    test_df = df %>%
+    test_df <- df %>%
       select(c(cats, vals)) %>%
       rename(cats = !!cats, vals = !!vals) %>%
       mutate(
@@ -318,35 +318,35 @@ perm_test = function(df,
   }
   
   # Compute observed test statistic --------------------------------------------
-  pop1_stat = test_df %>%
+  pop1_stat <- test_df %>%
     filter(cats == "pop1") %>%
     pull(vals) %>%
     fn()
-  pop2_stat = test_df %>%
+  pop2_stat <- test_df %>%
     filter(cats == "pop2") %>%
     pull(vals) %>%
     fn()
-  observed_stat = pop1_stat - pop2_stat
+  observed_stat <- pop1_stat - pop2_stat
   
   # Run test -------------------------------------------------------------------
-  samples = rep(NA, n)
+  samples <- rep(NA, n)
   for (i in 1:n) {
-    perm_df = test_df %>%
+    perm_df <- test_df %>%
       mutate(cats = permute(cats))
-    stat1 = perm_df %>%
+    stat1 <- perm_df %>%
       filter(cats == "pop1") %>%
       pull(vals) %>%
       fn()
-    stat2 = perm_df %>%
+    stat2 <- perm_df %>%
       filter(cats == "pop2") %>%
       pull(vals) %>%
       fn()
-    samples[i] = stat1 - stat2
+    samples[i] <- stat1 - stat2
   }
   
   # Compute p-value ------------------------------------------------------------
-  if (mode == 1) p = sum(samples >= observed_stat) / n
-  else p = sum(samples <= observed_stat) / n
+  if (mode == 1) p <- sum(samples >= observed_stat) / n
+  else p <- sum(samples <= observed_stat) / n
   
   return(p)
 }
