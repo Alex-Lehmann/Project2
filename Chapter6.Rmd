@@ -1,0 +1,17 @@
+---
+title: ""
+pagetitle: "ALChapter6"
+author: ""
+date: ""
+output: html_document
+---
+
+```{r setup, include = FALSE, message = FALSE, warning = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Conclusion Future Developments
+
+We now have a complete set of natural language processing tools built for our analysis. We have LDA and LSA for topic modeling, word embedding for document clustering, and sentiment analysis programmed and ready to use to derive insights into the CRA's organizational opportunities for improvement.
+
+Our next steps will include combining the basic results from the topic modeling, document clustering, and sentiment analysis tasks and using the combined results to generate statistical inference about the survey population. This will include investigating sentiments within and between topics using clusters of responses and locating differences in topic distribution across work location, language, etc.
