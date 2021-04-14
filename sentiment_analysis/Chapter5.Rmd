@@ -1,20 +1,22 @@
 ---
-title: "CRA Sentiment Analysis"
-author: "Alex Lehmann 101061620"
-date: "05/04/2021"
+title: ""
+pagetitle: "ALChapter5"
+author: ""
+date: ""
 output: html_document
 ---
 
-```{r setup, include=FALSE}
+```{r setup, include = FALSE, message = FALSE, warning = FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
 library(readxl)
 library(tidyverse)
 library(tidytext)
+library(gtools)
 ```
 
 ## Loading Data
-```{r load}
+```{r load, message = FALSE}
 # Translated responses =========================================================
 responses <- read_xlsx("../masterResponse.xlsx") %>%
   select(-response) %>%
@@ -79,7 +81,12 @@ colnames(survey) = c(
                      "can_contact",
                      "c_48"
                    )
+```
 
+The data contained categorical variables split across multiple columns and the long responses needed to be changed to lowercase and checked for strange characters that might not align with our sentiment lexicons.
+
+## Cleaning 
+```{r clean}
 # Clean MC responses -----------------------------------------------------------
 survey = survey %>%
   select(-c(language, status, date), -starts_with("c_")) %>%
@@ -100,10 +107,7 @@ survey = survey %>%
 
 # Augment text data ------------------------------------------------------------
 responses = full_join(responses, survey, by = "internal_id")
-```
 
-## Cleaning 
-```{r clean}
 clean <- responses %>%
   
   # Standardize word representation --------------------------------------------
@@ -116,6 +120,8 @@ clean <- responses %>%
   # Remove empty responses -----------------------------------------------------
   drop_na()
 ```
+
+Next, we tokenized by word to prepare for sentiment mapping.
 
 ## Tokenizing
 ```{r tokenize}
@@ -139,8 +145,10 @@ tokens <- clean %>%
   )
 ```
 
+We mapped the NRC (restricted to positive/negative), Bing, and AFINN lexicons to our tokenized data. We used three lexicons to check for consistent effects across responses, and the AFINN lexicon allowed us to also investigate depth of sentiment. Negation was handled bigrammatically by negating the sentiment of a word whose preword is a negation word.
+
 ## Map Sentiments
-```{r sentiments}
+```{r sentiments, cache = TRUE}
 # Helper function to map sentiments within a list-column =======================
 map_sents <- function(tokens,
                       lexicon, 
@@ -180,6 +188,8 @@ sents <- mutate(tokens,
          )
 ```
 
+Here, we visualized the sentiment distributions across several categorical variables from the survey responses such as region, tenure, language, etc. We also generated visualizations of the sentiments by question to determine which questions, generally, saw higher or lower sentiment expressed.
+
 ## Analyze Sentiment
 ```{r analyze_cats}
 # Overall sentiments by worker properties ######################################
@@ -214,6 +224,7 @@ sents_barplot = function(sents, lex) {
 sents_lineplot = function(sents, lex) {
   ggplot(sents, aes(x = var, y = eval(as.name(lex)))) +
     geom_line() + 
+    geom_hline(aes(yintercept = mean(sents$var)))
     ylab(lex)
 }
 
@@ -270,3 +281,81 @@ fab_tenure_sents %>%
   geom_line() +
   xlab("FAB Tenure")
 ```
+
+Sentiment analysis showed that the sentiment expressed in survey responses were generally quite positive, although certain segments of the population surveyed may display better or worse sentiment than others. In order to determine which of these differences are statistically significant, we used asymptotic permutation tests of hypothesis with the following hypotheses:  
+$H_0$: The mean sentiment in Population 1 is the same as the mean sentiment in Population 2;  
+$H_a$: The mean sentiment in Population 1 is higher/lower than the mean sentiment in Population 2.  
+All tests were conducted at the $\alpha$=``0.05`` level of significance.
+
+```{r analyze_perm_tests, cache = TRUE, message = FALSE}
+# Function to run a permutation test on the sentiments =========================
+# Mode 1 = >, mode 2 = <
+perm_test = function(df,
+                     cats,
+                     vals,
+                     pop1,
+                     pop2 = NULL,
+                     fn = mean,
+                     n = 1000,
+                     mode = 1) {
+  # Change labels to those required for the test -------------------------------
+  if (is.null(pop2)) {
+    test_df = df %>%
+      select(c(cats, vals)) %>%
+      rename(cats = !!cats, vals = !!vals) %>%
+      mutate(cats = ifelse(cats == pop1, "pop1", "pop2"))
+  } else {
+    test_df = df %>%
+      select(c(cats, vals)) %>%
+      rename(cats = !!cats, vals = !!vals) %>%
+      mutate(
+        cats = ifelse(cats == pop1, "pop1", cats),
+        cats = ifelse(cats == pop2, "pop2", cats)
+      ) %>%
+      filter(cats %in% c("pop1", "pop2"))
+  }
+  
+  # Compute observed test statistic --------------------------------------------
+  pop1_stat = test_df %>%
+    filter(cats == "pop1") %>%
+    pull(vals) %>%
+    fn()
+  pop2_stat = test_df %>%
+    filter(cats == "pop2") %>%
+    pull(vals) %>%
+    fn()
+  observed_stat = pop1_stat - pop2_stat
+  
+  # Run test -------------------------------------------------------------------
+  samples = rep(NA, n)
+  for (i in 1:n) {
+    perm_df = test_df %>%
+      mutate(cats = permute(cats))
+    stat1 = perm_df %>%
+      filter(cats == "pop1") %>%
+      pull(vals) %>%
+      fn()
+    stat2 = perm_df %>%
+      filter(cats == "pop2") %>%
+      pull(vals) %>%
+      fn()
+    samples[i] = stat1 - stat2
+  }
+  
+  # Compute p-value ------------------------------------------------------------
+  if (mode == 1) p = sum(samples >= observed_stat) / n
+  else p = sum(samples <= observed_stat) / n
+  
+  return(p)
+}
+
+# Hypothesis tests =============================================================
+# Mean sentiment in Knowledge and Research area is higher than the rest --------
+set.seed(101061620)
+perm_test(sents, "area", "afinn", "Knowledge and Research", n = 10000)
+
+# Mean sentiment among French speakers is lower than English -------------------
+perm_test(sents, "language", "nrc", "FR", n = 10000, mode = 2)
+```
+
+We see that according to the AFINN lexicon, survey responses on average displayed a significantly more positive sentiment than those of other areas. However, according to the NRC lexicon, there is insufficient evidence to conclude that French-language surveys expressed, on average, more negative sentiments than English-language surveys.
