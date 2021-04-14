@@ -15,7 +15,8 @@ library(tidytext)
 library(gtools)
 ```
 
-## Chapter 5-1: Loading Data
+# Chapter 5
+## Section 5-1: Loading Data
 ```{r load, message = FALSE}
 # Translated responses =========================================================
 responses <- read_xlsx("../masterResponse.xlsx") %>%
@@ -83,7 +84,7 @@ colnames(survey) = c(
                    )
 ```
 
-## Chapter 5-2: Cleaning 
+## Section 5-2: Cleaning 
 
 The data contained categorical variables split across multiple columns and the long responses needed to be changed to lowercase and checked for strange characters that might not align with our sentiment lexicons.
 
@@ -145,7 +146,7 @@ tokens <- clean %>%
   )
 ```
 
-## Chapter 5-3: Map Sentiments
+## Section 5-3: Map Sentiments
 
 We mapped the NRC (restricted to positive/negative), Bing, and AFINN lexicons to our tokenized data. We used three lexicons to check for consistent effects across responses, and the AFINN lexicon allowed us to also investigate depth of sentiment. Negation was handled bigrammatically by negating the sentiment of a word whose preword is a negation word.
 
@@ -189,7 +190,7 @@ sents <- mutate(tokens,
          )
 ```
 
-## Chapter 5-4: Analyze Sentiment
+## Section 5-4: Analyze Sentiment
 
 Here, we visualized the sentiment distributions across several categorical variables from the survey responses such as region, tenure, language, etc. We also generated visualizations of the sentiments by question to determine which questions, generally, saw higher or lower sentiment expressed.
 
