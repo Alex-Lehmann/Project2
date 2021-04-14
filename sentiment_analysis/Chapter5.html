@@ -192,8 +192,8 @@ summary {
 </div>
 
 
-<div id="loading-data" class="section level2">
-<h2>Loading Data</h2>
+<div id="chapter-5-1-loading-data" class="section level2">
+<h2>Chapter 5-1: Loading Data</h2>
 <pre class="r"><code># Translated responses =========================================================
 responses &lt;- read_xlsx(&quot;../masterResponse.xlsx&quot;) %&gt;%
   select(-response) %&gt;%
@@ -258,10 +258,10 @@ colnames(survey) = c(
                      &quot;can_contact&quot;,
                      &quot;c_48&quot;
                    )</code></pre>
-<p>The data contained categorical variables split across multiple columns and the long responses needed to be changed to lowercase and checked for strange characters that might not align with our sentiment lexicons.</p>
 </div>
-<div id="cleaning" class="section level2">
-<h2>Cleaning</h2>
+<div id="chapter-5-2-cleaning" class="section level2">
+<h2>Chapter 5-2: Cleaning</h2>
+<p>The data contained categorical variables split across multiple columns and the long responses needed to be changed to lowercase and checked for strange characters that might not align with our sentiment lexicons.</p>
 <pre class="r"><code># Clean MC responses -----------------------------------------------------------
 survey = survey %&gt;%
   select(-c(language, status, date), -starts_with(&quot;c_&quot;)) %&gt;%
@@ -295,9 +295,6 @@ clean &lt;- responses %&gt;%
   # Remove empty responses -----------------------------------------------------
   drop_na()</code></pre>
 <p>Next, we tokenized by word to prepare for sentiment mapping.</p>
-</div>
-<div id="tokenizing" class="section level2">
-<h2>Tokenizing</h2>
 <pre class="r"><code>tokens &lt;- clean %&gt;%
   
   # Convert responses to list-column for purrr ---------------------------------
@@ -316,10 +313,10 @@ clean &lt;- responses %&gt;%
                sep = &quot; &quot;
              )
   )</code></pre>
-<p>We mapped the NRC (restricted to positive/negative), Bing, and AFINN lexicons to our tokenized data. We used three lexicons to check for consistent effects across responses, and the AFINN lexicon allowed us to also investigate depth of sentiment. Negation was handled bigrammatically by negating the sentiment of a word whose preword is a negation word.</p>
 </div>
-<div id="map-sentiments" class="section level2">
-<h2>Map Sentiments</h2>
+<div id="chapter-5-3-map-sentiments" class="section level2">
+<h2>Chapter 5-3: Map Sentiments</h2>
+<p>We mapped the NRC (restricted to positive/negative), Bing, and AFINN lexicons to our tokenized data. We used three lexicons to check for consistent effects across responses, and the AFINN lexicon allowed us to also investigate depth of sentiment. Negation was handled bigrammatically by negating the sentiment of a word whose preword is a negation word.</p>
 <pre class="r"><code># Helper function to map sentiments within a list-column =======================
 map_sents &lt;- function(tokens,
                       lexicon, 
@@ -357,10 +354,10 @@ sents &lt;- mutate(tokens,
            bing = map_dbl(sents, ~ sum(.x$bing)),
            afinn = map_dbl(sents, ~ sum(.x$afinn))
          )</code></pre>
-<p>Here, we visualized the sentiment distributions across several categorical variables from the survey responses such as region, tenure, language, etc. We also generated visualizations of the sentiments by question to determine which questions, generally, saw higher or lower sentiment expressed.</p>
 </div>
-<div id="analyze-sentiment" class="section level2">
-<h2>Analyze Sentiment</h2>
+<div id="chapter-5-4-analyze-sentiment" class="section level2">
+<h2>Chapter 5-4: Analyze Sentiment</h2>
+<p>Here, we visualized the sentiment distributions across several categorical variables from the survey responses such as region, tenure, language, etc. We also generated visualizations of the sentiments by question to determine which questions, generally, saw higher or lower sentiment expressed.</p>
 <pre class="r"><code># Overall sentiments by worker properties ######################################
 # Helper function ==============================================================
 sents_by_cats = function(var, sents) {
